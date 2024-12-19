@@ -1,4 +1,5 @@
 import { GetServerSideProps, NextPage } from 'next'
+import DateFormatter from '../components/DateFormatter'
 
 interface Sample {
   id: number
@@ -11,7 +12,7 @@ interface Sample {
 interface Props {
   samples: Sample[]
   error?: string
-  debug?: string  // デバッグ情報用
+  debug?: string
 }
 
 const SamplesPage: NextPage<Props> = ({ samples, error, debug }) => {
@@ -47,7 +48,10 @@ const SamplesPage: NextPage<Props> = ({ samples, error, debug }) => {
                 {sample.description}
               </p>
               <div className="mt-4 text-sm text-gray-500">
-                Created at: {new Date(sample.created_at).toLocaleDateString()}
+                Created at: <DateFormatter 
+                  dateString={sample.created_at} 
+                  className="text-gray-500"
+                />
               </div>
             </div>
           ))}
@@ -60,7 +64,7 @@ const SamplesPage: NextPage<Props> = ({ samples, error, debug }) => {
 export const getServerSideProps: GetServerSideProps = async () => {
   try {
     const apiUrl = process.env.API_URL
-    console.log('Fetching from:', apiUrl) // CloudWatchログに記録される
+    console.log('Fetching from:', apiUrl)
 
     const res = await fetch(`${apiUrl}/api/samples`)
     if (!res.ok) {
@@ -72,7 +76,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
     return {
       props: {
         samples: data.data,
-        debug: `API URL: ${apiUrl}\nResponse: ${JSON.stringify(data, null, 2)}` // デバッグ用
+        debug: `API URL: ${apiUrl}\nResponse: ${JSON.stringify(data, null, 2)}`
       }
     }
   } catch (error) {
