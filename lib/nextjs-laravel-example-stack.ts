@@ -170,7 +170,7 @@ export class LaravelAppStack extends cdk.Stack {
 
     // Deploy static content to S3
     new s3deploy.BucketDeployment(this, 'StaticDeployment', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../nextjs/out'))],
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../nextjs/.next'))],
       destinationBucket: staticBucket,
     });
 
