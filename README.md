@@ -1,6 +1,6 @@
 # Next.js + Laravel Example with AWS CDK
 
-このプロジェクトは、Next.js（フロントエンド）とLaravel（バックエンド）を組み合わせた、AWSインフラストラクチャ上で動作するアプリケーションのサンプルです。
+Next.js（フロントエンド）とLaravel（バックエンド）を組み合わせたAWS CDKサンプルプロジェクトです。
 
 ## アーキテクチャ
 
@@ -22,57 +22,22 @@
 - Node.js (v18以上)
 - AWS CLI（設定済み）
 - Docker Desktop
-- PHP 8.2以上（ローカル開発用）
-- Composer（ローカル開発用）
 
-## プロジェクト構造
+## ローカル開発環境の起動
 
-```
-.
-├── app/                    # Laravel アプリケーション
-│   ├── src/               # Laravel ソースコード
-│   └── Dockerfile         # Laravel用 Dockerfile
-├── nextjs/                # Next.js アプリケーション
-│   ├── pages/             # Next.jsページ
-│   └── Dockerfile        # Next.js用 Dockerfile
-├── lib/                   # CDK スタック定義
-├── bin/                   # CDK エントリーポイント
-└── cdk.json              # CDK 設定
-```
-
-## セットアップ手順
-
-1. リポジトリのクローン
-```bash
-git clone [your-repo-url]
-cd [your-repo-name]
-```
-
-2. 依存関係のインストール
-```bash
-# CDKプロジェクトの依存関係
-npm install
-
-# Next.jsアプリケーションの依存関係
-cd nextjs
-npm install
-cd ..
-
-# Laravelアプリケーションの依存関係（ローカル開発時）
-cd app
-composer install
-cd ..
-```
-
-3. ローカル開発環境の起動
 ```bash
 # Docker Composeを使用してローカル環境を起動
 docker-compose up
 ```
 
-## デプロイ方法
+以下のサービスが起動します：
+- Next.js: http://localhost:3000
+- Laravel API: http://localhost:8080
+- phpMyAdmin: http://localhost:8081
 
-1. AWSクレデンシャルの設定
+## AWSへのデプロイ
+
+1. AWSクレデンシャルの設定（初回のみ）
 ```bash
 aws configure
 ```
@@ -84,57 +49,27 @@ cdk bootstrap
 
 3. アプリケーションのデプロイ
 ```bash
+# プロジェクトの依存関係をインストール
+npm install
+
 # Next.jsアプリケーションのビルド
 cd nextjs
+npm install
 npm run build
 cd ..
 
-# CDKスタックのデプロイ
+# デプロイの実行
 cdk deploy
 ```
 
-## 開発環境
-
-### ローカル開発
-
-1. Laravel API
-```bash
-cd app
-php artisan serve
-```
-
-2. Next.jsアプリケーション
-```bash
-cd nextjs
-npm run dev
-```
-
-### Docker環境
-
-```bash
-docker-compose up
-```
+デプロイ完了後、CloudFrontのドメインが出力されます。
 
 ## エンドポイント
 
-デプロイ後、以下のエンドポイントが利用可能になります：
-
-- **フロントエンド**: CloudFrontのドメイン（CDKデプロイ後に出力されます）
-  - `/` - スタティックページ
-  - `/samples` - データベースからのサンプルデータ表示（SSR）
-- **API**: `/api/samples` - サンプルデータのJSON API
-
-## 環境変数
-
-### Laravel
-- `APP_ENV`
-- `DB_HOST`
-- `DB_DATABASE`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-
-### Next.js
-- `API_URL` - Laravel APIのエンドポイント
+- **フロントエンド**: CloudFrontドメイン
+  - `/` - トップページ
+  - `/samples` - サンプルデータ表示
+- **API**: `/api/samples` - サンプルデータAPI
 
 ## 課題やフィードバック
 

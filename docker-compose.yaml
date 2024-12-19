@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  laravel:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: 'true'
+      APP_KEY: base64:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: laravel_db
+      DB_USERNAME: admin
+      DB_PASSWORD: password
+    depends_on:
+      - db
+
+  nextjs:
+    build:
+      context: ./nextjs
+      dockerfile: Dockerfile.dev
+      target: builder
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      API_URL: http://laravel  # ここを変更 - Docker のサービス名を指定
+    volumes:
+      - ./nextjs:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    depends_on:  # Laravel サービスへの依存関係を追加
+      - laravel
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: laravel_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_USER: admin
+      PMA_PASSWORD: password
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:
