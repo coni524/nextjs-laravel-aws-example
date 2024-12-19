@@ -1,0 +1,33 @@
+# .gitignore ファイルの作成
+echo "# CDK関連
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+.cdk.staging
+cdk.out/
+cdk.context.json
+.DS_Store
+
+# Next.js関連
+.next/
+out/
+build
+dist/
+.env*.local
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# IDE関連
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# その他
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*" > .gitignore
