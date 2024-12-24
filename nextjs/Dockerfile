@@ -8,7 +8,7 @@ RUN npm clean-install
 
 # ソースコードのコピーとビルド
 COPY . .
-RUN npm run build
+#RUN npm run build
 
 FROM node:18-alpine AS runner
 

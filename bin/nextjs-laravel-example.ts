@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { LaravelAppStack } from '../lib/nextjs-laravel-example-stack';
+import { LaravelNextJsStack } from '../lib/nextjs-laravel-example-stack';
 
 const app = new cdk.App();
-new LaravelAppStack(app, 'LaravelAppStack', {
+new LaravelNextJsStack(app, 'LaravelNextJsStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */

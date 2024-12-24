@@ -12,7 +12,7 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as path from 'path';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
 
-export class LaravelAppStack extends cdk.Stack {
+export class LaravelNextJsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -41,7 +41,7 @@ export class LaravelAppStack extends cdk.Stack {
 
     const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.mysql({
-        version: rds.MysqlEngineVersion.VER_8_0
+        version: rds.MysqlEngineVersion.VER_8_0,
       }),
       vpc,
       credentials: rds.Credentials.fromSecret(databaseCredentials),
@@ -59,21 +59,20 @@ export class LaravelAppStack extends cdk.Stack {
       deletionProtection: false,
     });
 
-    // Build and push Docker image
-    const dockerImage = new DockerImageAsset(this, 'LaravelImage', {
+    // Laravel Fargate Service
+    const laravelImage = new DockerImageAsset(this, 'LaravelImage', {
       directory: path.join(__dirname, '../app'),
       file: 'Dockerfile',
-      platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,  // x86_64を指定
+      platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,
     });
 
-    // Fargate Service with ALB
-    const fargateService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, 'LaravelService', {
+    const laravelService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, 'LaravelService', {
       cluster,
       cpu: 512,
       memoryLimitMiB: 1024,
       desiredCount: 2,
       taskImageOptions: {
-        image: ecs.ContainerImage.fromDockerImageAsset(dockerImage),
+        image: ecs.ContainerImage.fromDockerImageAsset(laravelImage),
         containerPort: 80,
         environment: {
           APP_ENV: 'production',
@@ -97,7 +96,7 @@ export class LaravelAppStack extends cdk.Stack {
     });
 
     // ターゲットグループのヘルスチェック設定
-    fargateService.targetGroup.configureHealthCheck({
+    laravelService.targetGroup.configureHealthCheck({
       path: '/api/health',
       interval: cdk.Duration.seconds(30),
       timeout: cdk.Duration.seconds(10),
@@ -107,35 +106,15 @@ export class LaravelAppStack extends cdk.Stack {
     });
 
     // Allow ECS task to connect to RDS
-    database.connections.allowDefaultPortFrom(fargateService.service);
+    database.connections.allowDefaultPortFrom(laravelService.service);
 
-    // // CloudFront Distribution
-    // const distribution = new cloudfront.Distribution(this, 'AppDistribution', {
-    //   defaultBehavior: {
-    //     origin: new origins.LoadBalancerV2Origin(fargateService.loadBalancer, {
-    //       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-    //     }),
-    //     viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-    //     allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-    //     cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
-    //     cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-    //     originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
-    //   },
-    //   priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-    // });
-
-
-
-
-    // Next.js SSR Service
+    // Next.js Fargate Service
     const nextjsImage = new DockerImageAsset(this, 'NextjsImage', {
       directory: path.join(__dirname, '../nextjs'),
       file: 'Dockerfile',
-      platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,  // x86_64を指定
+      platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,
     });
-
-    const laravelServiceUrl = `http://${fargateService.loadBalancer.loadBalancerDnsName}`;
-
+    
     const nextjsService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, 'NextjsService', {
       cluster,
       cpu: 512,
@@ -145,34 +124,41 @@ export class LaravelAppStack extends cdk.Stack {
         image: ecs.ContainerImage.fromDockerImageAsset(nextjsImage),
         containerPort: 3000,
         environment: {
-          API_URL: laravelServiceUrl,
+          API_URL: `http://${laravelService.loadBalancer.loadBalancerDnsName}`,
           NODE_ENV: 'production',
         },
       },
       publicLoadBalancer: true,
     });
-    
+
     // セキュリティグループのルールを追加
-    const laravelServiceSg = fargateService.service.connections.securityGroups[0];
+    const laravelServiceSg = laravelService.service.connections.securityGroups[0];
     const nextjsServiceSg = nextjsService.service.connections.securityGroups[0];
-    
+
     laravelServiceSg.addIngressRule(
-      nextjsServiceSg,
-      ec2.Port.tcp(80),
-      'Allow Next.js to access Laravel API'
+      nextjsServiceSg, 
+      ec2.Port.tcp(80), 
+      'Allow traffic from Next.js service'
     );
 
-    // S3 Bucket for static content
+    // S3 Bucket for static files
     const staticBucket = new s3.Bucket(this, 'StaticBucket', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // Deploy static content to S3
-    new s3deploy.BucketDeployment(this, 'StaticDeployment', {
-      sources: [s3deploy.Source.asset(path.join(__dirname, '../nextjs/.next'))],
+    // Deploy static files to S3
+    const staticDeployment = new s3deploy.BucketDeployment(this, 'StaticDeployment', {
+      sources: [
+        s3deploy.Source.asset(path.join(__dirname, '../nextjs/public')),
+        s3deploy.Source.asset(path.join(__dirname, '../nextjs/.next')),
+      ],
       destinationBucket: staticBucket,
+      destinationKeyPrefix: '_next', // S3のアップロード先パスを指定
     });
+
+    // S3 デプロイが Fargate サービスに依存するように設定
+    staticDeployment.node.addDependency(nextjsService);
 
     // CloudFront Distribution
     const distribution = new cloudfront.Distribution(this, 'AppDistribution', {
@@ -181,23 +167,21 @@ export class LaravelAppStack extends cdk.Stack {
           protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
         }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
         cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
         originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
       },
       additionalBehaviors: {
-        '/api/*': {
-          origin: new origins.LoadBalancerV2Origin(fargateService.loadBalancer, {
-            protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-          }),
+        '/_next/*': {
+          origin: new origins.S3Origin(staticBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
-        }
+          cachePolicy: new cloudfront.CachePolicy(this, 'StaticCachePolicy', {
+            minTtl: cdk.Duration.days(1),
+            defaultTtl: cdk.Duration.days(30),
+            maxTtl: cdk.Duration.days(365),
+          }),
+        },
       },
     });
-
 
     // Outputs
     new cdk.CfnOutput(this, 'CloudFrontDomain', {
@@ -205,13 +189,11 @@ export class LaravelAppStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'LoadBalancerDNS', {
-      value: fargateService.loadBalancer.loadBalancerDnsName,
+      value: laravelService.loadBalancer.loadBalancerDnsName,
     });
 
     new cdk.CfnOutput(this, 'DatabaseEndpoint', {
       value: database.instanceEndpoint.hostname,
     });
-
-
   }
 }
